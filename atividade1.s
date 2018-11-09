@@ -72,8 +72,8 @@ read_slider:
 	ldr	r1,[r4]			@ se sim, desativo a flag e armazeno na flag
 	cmp	r1,#on			@ e faço a leitura da velocidade e guardo em r2
 	moveq	r1,#off			@ e deixo a variavel de fase como 1
-	streq	r1,[r4]			@ e deixo a variavel contador como 0		
-	ldreq	r4,=slider		@ e desvio para o begin
+	streq	r1,[r4]			@ e desvio para o begin		
+	ldreq	r4,=slider
 	ldreq	r1,[r4]
 	moveq	r2,r1
 	ldreq	r4,=fase
@@ -91,12 +91,12 @@ read_slider:
 @ r6 - loop atual
 @ r5 - auxiliar para loop2
 begin:
-	ldr	r4,=contador		@ verifico se houve 3 erros
-	ldr	r0,[r4]			@ se sim, deixo 0 a variavel contador
-	cmp	r0,#3			@ e deixo a variavel de fase como 1
-	moveq	r0,#0			@ carrego a mensagem de Fim de jogo
-	streq	r0,[r4]			@ escrevo no display lcd
-	ldreq	r4,=fase		@ e por fim desvio e espero a leitura da velocidade
+	ldr	r4,=contador
+	ldr	r0,[r4]
+	cmp	r0,#3
+	moveq	r0,#0
+	streq	r0,[r4]
+	ldreq	r4,=fase
 	moveq	r1,#1
 	streq	r1,[r4]
 	ldreq	r1,=msg_over
@@ -112,7 +112,7 @@ begin:
 	bleq	lcd_sp
 	beq	read_slider
 
-	bl	lcd_refresh		@ atualiza o display lcd com a velocidade e fase
+	bl	lcd_refresh
 	
 	ldr	r4,=fase		@ verifica se o jogo comecou/resetou
 	ldr	r1,[r4]			@ se sim, r3=4 e r6=0 
@@ -126,9 +126,9 @@ begin:
 	str	r4,[r1]
 	beq	loop			
 
-	ldr	r4,=contador		@ verifico se houve algum erro de sequencias
-	ldr	r1,[r4]			@ se sim, desvio para o loop
-	cmp	r1,#1			@ para receber uma nova sequencia
+	ldr	r4,=contador
+	ldr	r1,[r4]
+	cmp	r1,#1
 	bpl	loop
 	
 	mov	r5,r3			@ se nao, r5 recebe r3-1
@@ -139,90 +139,88 @@ begin:
 @ r3 - quantidade de loops
 @ r6 - numero do loop atual
 loop:
-	ldr	r4,=flag_timer		@ verifico se houve interrupcao do timer
-	ldr	r0,[r4]			@ se nao, espero receber uma interrupcao do timer
-	cmp	r0,#on			@ se sim, desativo a flag_timer e continuo
-	bne	loop
-	moveq	r0,#off
+	ldr	r4,=flag_timer		@ verifico se houve interrupcao
+	ldr	r0,[r4]
+	cmp	r0,#on
+	bne	loop			@ se nao volto para o loop
+	moveq	r0,#off			@ se sim altero a flag
 	streq	r0,[r4]
 
 	cmp	r3,r6			@ verifico se o loop terminou
-	ldreq	r4,=timer		@ se sim, armazeno 3s para o timer
-	moveq	r5,#tempo		@ e desligo todos os leds
-	moveq	r1,#3			@ e zero o numero de loops
-	muleq	r5,r1			@ e guardo o endereço do último valor da sequencia
-	streq	r5,[r4]			@ e por fim, desvio para led_setoff
-	ldreq	r4,=leds
+	ldreq	r4,=timer		@ carrego um novo intervalo para o timer
+	moveq	r5,#tempo
+	moveq	r1,#3
+	muleq	r5,r1
+	streq	r5,[r4]
+	ldreq	r4,=leds		@ se sim, deixo os leds todos apagados
 	moveq	r5,#0
 	streq	r5,[r4]	
-	moveq	r6,#0
-	moveq	fp,sp
-	beq	led_setoff
+	moveq	r6,#0			@ zero o loop
+	moveq	fp,sp			@ guardo a posicao do stack pointer
+	beq	led_setoff		@ desvio para a leitura dos botoes
 
-					@ caso o loop nao tenha terminado
-
-	ldr	r4,=flag_slider		@ verifico se houve mudanca na velocidade
-	ldr	r1,[r4]			@ se sim, desvio para ver a nova velocidade
+	ldr	r4,=flag_slider
+	ldr	r1,[r4]
 	cmp	r1,#on
 	beq	read_slider
 
 
-	push	{r2,r3}			@ empilho r2,r3 para gerar um numero aleatorio
-	bl	genrand_int32		@ e com isso r0 possui esse numero aleatorio
-	pop	{r2,r3}			@ desempilho r2 e r3
-	mov	r5,#3			@ r5 recebe uma mascara de bits
-	and	r0,r5			@ assim o numero aleatorio fica entre 0 e 3
-	ldr	r4,=color		@ e depois pego um dos valores de cor no vetor de cores
-	ldrb	r5,[r4,r0]		@ em seguida, armazeno esse valor no endereço do led
-	ldr	r4,=leds		@ empilho esse valor para depois compara-lo
-	str	r5,[r4]			@ incremento o loop
-	push	{r5}			@ e desvio de volta 
+	push	{r2,r3}
+	bl	genrand_int32		@ r0 contem o numero aleatorio
+	pop	{r2,r3}
+	mov	r5,#3			@
+	and	r0,r5		
+	ldr	r4,=color
+	ldrb	r5,[r4,r0]		@ carrego qual led deve acender
+	ldr	r4,=leds
+	str	r5,[r4]			@ armazeno no endereco das leds
+	push	{r5}
 	add	r6,#1
 	b	loop
 @-----------------------------------------------------------------------------------
-@ esse função desliga todos os botões antes de fazer a leitura da sequência
 led_setoff:
 	mov	r0,#0
 
-	ldr	r1,=red			@ verifico se o botão vermelho esta ativo
-	ldr	r4,[r1]			@ se sim, incremento r0
+	ldr	r1,=red			@ verifico se a luz vermelha acendeu
+	ldr	r4,[r1]
 	cmp	r4,#on
 	moveq	r4,#off
 	streq	r4,[r1]
 	addeq	r0,#1
 
-	ldr	r1,=green		@ verifico se o botão verde esta ativo
-	ldr	r4,[r1]			@ se sim, incremento r0
+	ldr	r1,=green		@ verifico se a luz verde acendeu
+	ldr	r4,[r1]
 	cmp	r4,#on
 	moveq	r4,#off
 	streq	r4,[r1]
 	addeq	r0,#1
 
-	ldr	r1,=yellow		@ verifico se o botão amarelo esta ativo
-	ldr	r4,[r1]			@ se sim, incremento r0
+	ldr	r1,=yellow		@ verifico se a luz amarela acendeu
+	ldr	r4,[r1]
 	cmp	r4,#on
 	moveq	r4,#off
 	streq	r4,[r1]
 	addeq	r0,#1
 
-	ldr	r1,=blue		@ verifico se o botão azul esta ativo
-	ldr	r4,[r1]			@ se sim, incremento r0
+	ldr	r1,=blue		@ verifico se a luz azul acendeu
+	ldr	r4,[r1]
 	cmp	r4,#on
 	moveq	r4,#off
 	streq	r4,[r1]
 	addeq	r0,#1
 
-	cmp	r0,#0			@ por fim, verifico se nenhum botão está ativo
-	bne	led_setoff		@ se não, volto para o começo da função
-	beq	loop1			@ se sim, vou para a leitura da sequência
+	cmp	r0,#0
+	bne	led_setoff
+
+	beq	loop1
 @-----------------------------------------------------------------
 @ r6 - numero do loop
 @ r7 - endereço do stack pointer
 loop1:
 	ldr	r4,=flag_timer		@ verifico se houve interrupcao
-	ldr	r0,[r4]			@ se sim, desativo a flag_timer
-	cmp	r0,#on			@ e desligo os leds
-	moveq	r0,#off			@ e desvio para verifica
+	ldr	r0,[r4]			
+	cmp	r0,#on
+	moveq	r0,#off
 	streq	r0,[r4]
 	ldreq	r4,=leds
 	moveq	r1,#0
@@ -230,128 +228,122 @@ loop1:
 	beq	verifica
 	
 	cmp	r3,r6			@ verifica se terminou o loop
-	ldreq	r4,=fase		@ se sim, incremento a variavel da fase
-	ldreq	r1,[r4]			@ e armazeno um valor no timer
-	addeq	r1,#1			@ e faço um reset na variavel contador
-	streq	r1,[r4]			@ incremento o numero total de loops
-	ldreq	r4,=timer		@ e faço um reset no loop atual
-	moveq	r1,#tempo		@ por fim vou para wait
+	ldreq	r4,=fase		@ incremento a variavel da fase
+	ldreq	r1,[r4]
+	addeq	r1,#1
 	streq	r1,[r4]
-@	ldreq	r4,=contador
-@	moveq	r1,#0
-@	streq	r1,[r4]	
+	ldreq	r4,=timer
+	moveq	r1,#tempo
+	streq	r1,[r4]
+	ldreq	r4,=contador
+	moveq	r1,#0
+	streq	r1,[r4]	
 	addeq	r3,#1
 	moveq	r6,#0
 	beq	wait
 	
-	ldr	r1,=red			@ verifico se o botão vermelho foi pressionado
-	ldr	r4,[r1]			@ se sim, ligo o led vermelho
-	cmp	r4,#on			@ e desvio para compara
+	ldr	r1,=red			@ verifico se a luz vermelha acendeu
+	ldr	r4,[r1]
+	cmp	r4,#on
 	moveq	r1,#0x8
 	ldreq	r4,=leds
 	streq	r1,[r4]
 	beq	compara
 
-	ldr	r1,=green		@ verifico se o botão verde foi pressionado
-	ldr	r4,[r1]			@ se sim, ligo o led verde
-	cmp	r4,#on			@ e desvio para compara
+	ldr	r1,=green		@ verifico se a luz verde acendeu
+	ldr	r4,[r1]
+	cmp	r4,#on
 	moveq	r1,#0x4
 	ldreq	r4,=leds
 	streq	r1,[r4]
 	beq	compara
 
-	ldr	r1,=yellow		@ verifico se o botão amarelo foi pressionado
-	ldr	r4,[r1]			@ se sim, ligo o led amarelo
-	cmp	r4,#on			@ e desvio para compara
+	ldr	r1,=yellow		@ verifico se a luz amarela acendeu
+	ldr	r4,[r1]
+	cmp	r4,#on
 	moveq	r1,#0x2
 	ldreq	r4,=leds
 	streq	r1,[r4]
 	beq	compara
 
-	ldr	r1,=blue		@ verifico se o botão azul foi pressionado
-	ldr	r4,[r1]			@ se sim, ligo o led azul
-	cmp	r4,#on			@ e desvio para compara
+	ldr	r1,=blue		@ verifico se a luz azul acendeu
+	ldr	r4,[r1]
+	cmp	r4,#on
 	moveq	r1,#0x1
 	ldreq	r4,=leds
 	streq	r1,[r4]
 	beq	compara
 	
-	b	loop1			@ caso nenhum botão foi ativado, volto para o loop1
+	b	loop1
 @---------------------------------------------------------------------------------
-@ essa função verifica se termino o jogo ou se considero como um erro
 verifica:
-	cmp	r6,#0			@ verifico se é o primeiro ciclo do loop
-	ldreq	r1,=msg_over		@ se for, carrego a mensagem Fim de jogo
-	bleq	lcd_sp			@ escrevo no display lcd
-	beq	read_slider		@ desvio para a leitura do slider
+	cmp	r6,#0
+	ldreq	r1,=msg_over
+	bleq	lcd_sp
+	beq	read_slider
 	
-	ldr	r4,=contador		@ se não, carrego valor do contador de erros
+	ldr	r4,=contador
 	ldr	r1,[r4]
 	add	r1,#1
 	str	r1,[r4]
 	
-	cmp	r1,#3			@ verifico se houve 3 erros consecutivos
-	beq	begin			@ se sim, desvio para o begin
+	cmp	r1,#3
+	beq	begin
 
-	ldr	r4,=leds		@ se não, desligo os leds
-	mov	r1,#0			@ faço um reset no loop atual
-	str	r1,[r4]			@ armazeno um tempo para aparecer a mensagem de erro
-	mov	r6,#0			@ carrego essa mensagem
-	ldr	r4,=timer		@ e escrevo no display lcd
+	ldr	r4,=leds
+	mov	r1,#0
+	str	r1,[r4]
+	mov	r6,#0
+	ldr	r4,=timer
 	mov	r1,#tempo
 	str	r1,[r4]
 	ldr	r1,=msg_erro
 	bl	lcd_sp
 
-	b	wait			@ por fim desvio para o wait
+	b	wait
 @-----------------------------------------------------------------------------------
-@ essa função compara o botão com a cor da sequência
 compara:
-	add	r7,r6,#1		@ faço uma conta para encontrar as cores da sequência
-	sub	r4,r3,r7		@ de acordo com o valor do loop atual
-	mov	r0,#4			@ e desloco na pilha
-	mul	r0,r4			@ e pego o valor
+	add	r7,r6,#1
+	sub	r4,r3,r7
+	mov	r0,#4
+	mul	r0,r4
 	add	fp,r0
 	ldrb	r4,[fp]
-
-	cmp	r4,r1			@ verifico se o botão está certo na sequência
-	addeq	r6,#1			@ se sim, incremento o loop atual
+	cmp	r4,r1
+	addeq	r6,#1
 	ldreq	r4,=timer		@ carrego um novo intervalo para o timer
-	moveq	r5,#tempo		@ volto a posição da pilha
-	streq	r5,[r4]			@ e desvio para o loop1
+	moveq	r5,#tempo
+	streq	r5,[r4]
 	mov	fp,sp
 	beq	loop1
 
-	ldr	r4,=contador		@ se nao, incremento o contador
+	ldr	r4,=contador
 	ldr	r1,[r4]
 	add	r1,#1
 	str	r1,[r4]
 
-	cmp	r1,#3			@ verifico se o contador tem 3 erros
-	beq	begin			@ se sim, desvio para o begin
-
-	ldr	r4,=timer		@ carrego um tempo para a mensagem de erro aparacer
-	mov	r1,#tempo		@ e desativo os leds
-	str	r1,[r4]			@ e faço um reset no loop atual
-	ldr	r4,=leds		@ carrego a mensgem de erro
-	mov	r1,#0			@ e escrevo no display lcd
+	ldr	r4,=timer
+	mov	r1,#tempo
+	str	r1,[r4]
+	ldr	r4,=leds
+	mov	r1,#0
 	str	r1,[r4]
 	mov	r6,#0
 	ldr	r1,=msg_erro
 	bl	lcd_sp
 
-	b	wait			@ por fim vou para wait
+	b	wait
 @-----------------------------------------------------------------------------------
-@ essa função espera um intervalo de tempo para mensagem ficar no display
 wait:
 	ldr	r4,=flag_timer		@ verifico se houve interrupcao
-	ldr	r1,[r4]			@ se sim, desativo a flag_timer
-	cmp	r1,#on			@ desativo os leds
-	moveq	r1,#off			@ calculo o intervalo de tempo para a sequecia de cores 
-	streq	r1,[r4]			@ e desvio para o begin
+	ldr	r1,[r4]			
+	cmp	r1,#on
+	moveq	r1,#off
+	streq	r1,[r4]
 	ldreq	r4,=leds
 	moveq	r1,#0
 	streq	r1,[r4]
+	
 	rsbeq	r4,r2,#6
 	moveq	r1,#100
 	muleq	r4,r1
@@ -359,37 +351,45 @@ wait:
 	streq	r4,[r1]
 	beq	begin
 	
-	bne	wait			@ se não, volto para wait
+	bne	wait
+@----------------------------------------------------------------------------------
+wait1:
+	ldr	r4,=flag_timer		@ verifico se houve interrupcao
+	ldr	r1,[r4]			
+	cmp	r1,#on
+	moveq	r1,#off
+	bxeq	lr
+	
+	bne	wait1
 @--------------------------------------------------------------------------
 loop2:
 	cmp	r5,r6			@ verifico se o loop terminou
-	beq	loop			@ se sim vou para loop
+	beq	loop
 
 	ldr	r4,=flag_timer		@ verifico se houve interrupcao
-	ldr	r0,[r4]			@ se nao, volto para o começo do loop2
+	ldr	r0,[r4]
 	cmp	r0,#on
-	bne	loop2
-
-	moveq	r0,#off			@ se sim, desativo a flag_timer
-	streq	r0,[r4]			@ verifico se houver alteração na velocidade
-	ldr	r1,=flag_slider		@ caso haja, vou para a leitura da velocidade
+	bne	loop2			@ se nao volto para o loop
+	moveq	r0,#off			@ se sim altero a flag
+	streq	r0,[r4]
+	
+	ldr	r1,=flag_slider
 	ldr	r4,[r1]
 	cmp	r4,#on
 	beq	read_slider
 	
-	add	r7,r6,#1		@ carrego as cores que apareceram na fase passada
-	sub	r4,r5,r7		@ para isso faco um calculo com o numero do loop atual
-	mov	r0,#4			@ e desloco a posição da pilha 
-	mul	r0,r4			@ e carrego o valor da sequência
-	add	fp,r0			@ e ligo a cor correspondente
-	ldrb	r1,[fp]			@ retorno a posição da pilha
-	ldr	r4,=leds		@ e desloco para o começo do loop2
+	add	r7,r6,#1
+	sub	r4,r5,r7
+	mov	r0,#4
+	mul	r0,r4
+	add	fp,r0
+	ldrb	r1,[fp]
+	ldr	r4,=leds
 	str	r1,[r4]
 	add	r6,#1
 	mov	fp,sp	
 	b	loop2
 @-----------------------------------------------------------------------------------
-@ essa função atualiza o display lcd com a velocidade e a fase do jogo
 lcd_refresh:
 	push	{lr}
 	mov	r0,#LCD_FUNCTIONSET+LCD_8BITMODE+LCD_2LINE+LCD_5x8DOTS
@@ -404,12 +404,11 @@ lcd_refresh:
 	bl	write_msg
 	mov	r0,#(LCD_SETDDRAMADDR+64)
 	bl      wr_cmd
-	ldr	r1, =msg1
+	ldr		r1, =msg1
 	bl      write_msg1
 	pop	{lr}
 	bx	lr
 @---------------------------------------------------------------------------
-@ essa função atualiza o display lcd com mensagens especiais de apenas uma linha
 lcd_sp:
 	push	{lr}
 	
@@ -426,7 +425,6 @@ lcd_sp:
 	pop	{lr}	
 	bx	lr
 @-------------------------------------------------------------------------
-@ função que verifica porta de comando do display pode ser utilizada. Se sim, escreve o comando na porta
 wr_cmd:
 	ldr	r4,=display_cmd @ r6 tem porta display
 	ldrb	r5,[r4]
@@ -434,7 +432,6 @@ wr_cmd:
 	beq	wr_cmd           @ espera BF ser 1
 	strb	r0,[r4]
 	mov	pc,lr
-@ função que verifica a porta de comando deo display pode ser utilizada. Se sim, escreve no display. 
 wr_dat:
 	ldr	r10,=display_cmd
 	ldrb	r5,[r10]
@@ -443,7 +440,6 @@ wr_dat:
 	ldr	r10,=display_data
 	strb	r0,[r10]
 	mov	pc,lr
-@ função que chama para escever a velocidade no display
 write_msg:
 	push	{lr}
 	mov	r4,r2
@@ -451,7 +447,6 @@ write_msg:
 	mov	r5,#9
 	mul	r4,r5
 	b	write_msg_loop
-@ função que chama para escrever a fase no display
 write_msg1:
 	push	{lr}
 	ldr	r5,=fase
@@ -460,12 +455,11 @@ write_msg1:
 	mov	r5,#8
 	mul	r4,r5
 	b	write_msg_loop
-@ função que chama para escrever as mensagens especiais
 write_msg2:
 	push	{lr}
 	mov	r4,#0
 	b	write_msg_loop
-@ loop que pega letra por letra para a escrita até ter um 0x00.
+
 write_msg_loop:
 	ldrb	r0,[r1,r4]
 	cmp	r0,#0
@@ -474,6 +468,9 @@ write_msg_loop:
 	add	r1,#1
 	b	write_msg_loop
 
+end:
+	mov     r7, #1     @ exit é syscall #1
+	swi     #0x55      @ invoca syscall 
 fase:
 	.word	1
 color:
