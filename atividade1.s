@@ -46,17 +46,17 @@
 	b	tratador_slider
 
 _start:
-	mov	sp,#0x10000
-	mov	r0,#modo_irq	
-	msr	cpsr,r0
-	mov	sp,#stack_irq
-	mov	r0,#modo_fiq
-	msr	cpsr,r0
-	mov	sp,#stack_fiq
-	mov	r0,#modo_user
-	bic     r0,r0,#(irq+fiq)
-	msr	cpsr,r0
-	mov	sp,#stack
+	mov	sp,#0x10000		@ deixo o endereço da pilha com um valor especifico
+	mov	r0,#modo_irq		@ coloco o processador no modo de interrupcao irq
+	msr	cpsr,r0			
+	mov	sp,#stack_irq		@ set da pilha de interrupção irq
+	mov	r0,#modo_fiq		@ coloco o processador no modo de interrupção fiq
+	msr	cpsr,r0			
+	mov	sp,#stack_fiq		@ set da pilha de interrupção fiq
+	mov	r0,#modo_user		@ coloco o processador no modo usuario
+	bic     r0,r0,#(irq+fiq)	@ interrupções habilitadas
+	msr	cpsr,r0			
+	mov	sp,#stack		@ set da pilha do usuario
 
 	mov	r2,#0
 	mov	r3,#0
@@ -73,16 +73,21 @@ read_slider:
 	cmp	r1,#on			@ e faço a leitura da velocidade e guardo em r2
 	moveq	r1,#off			@ e deixo a variavel de fase como 1
 	streq	r1,[r4]			@ e deixo a variavel contador como 0		
-	ldreq	r4,=slider		@ e desvio para o begin
-	ldreq	r1,[r4]
+	ldreq	r4,=slider		@ e deixo a flag_erro como 0
+	ldreq	r1,[r4]			@ e desvio para o begin
 	moveq	r2,r1
+	ldreq	r4,=flag_erro
+	moveq	r1,#0
+	streq	r1,[r4]
 	ldreq	r4,=fase
 	moveq	r1,#1
 	streq	r1,[r4]
 	ldreq	r4,=contador
 	moveq	r1,#0
 	streq	r1,[r4]
-	
+	ldreq	r4,=flag_timer
+	moveq	r1,#0
+	streq	r1,[r4]
 	beq	begin
 
 	bne	read_slider		@ se nao, volto para esperar ler o slider
@@ -100,6 +105,7 @@ begin:
 	moveq	r1,#1
 	streq	r1,[r4]
 	ldreq	r1,=msg_over
+	moveq	sp,#stack
 	bleq	lcd_sp
 	beq	read_slider
 		
@@ -110,6 +116,7 @@ begin:
 	streq	r1,[r4]
 	ldreq	r1,=msg_win
 	bleq	lcd_sp
+	moveq	sp,#stack
 	beq	read_slider
 
 	bl	lcd_refresh		@ atualiza o display lcd com a velocidade e fase
@@ -119,17 +126,23 @@ begin:
 	cmp	r1,#1			@ calculo o intervalo do timer e armazena nele
 	moveq	r3,#4			@ desvia para o loop
 	moveq	r6,#0
+	moveq	sp,#stack
+	ldr	r4,=flag_timer
+	mov	r1,#0
+	str	r1,[r4]
 	rsb	r4,r2,#6
 	mov	r1,#100
-	mul	r4,r1
-	ldr	r1,=timer
-	str	r4,[r1]
+	mul	r1,r4
+	ldr	r4,=timer
+	str	r1,[r4]
 	beq	loop			
-
-	ldr	r4,=contador		@ verifico se houve algum erro de sequencias
-	ldr	r1,[r4]			@ se sim, desvio para o loop
-	cmp	r1,#1			@ para receber uma nova sequencia
-	bpl	loop
+ 
+	ldr	r4,=flag_erro		@ verifico se houve alguma novo erro de sequencias
+	ldr	r1,[r4]			@ se sim, desativo a flag
+	cmp	r1,#1			@ desvio para o loop
+	moveq	r1,#0			@ para receber uma nova sequencia
+	streq	r1,[r4]	
+	beq	loop
 	
 	mov	r5,r3			@ se nao, r5 recebe r3-1
 	sub	r5,#1			@ e desvia para o loop2
@@ -216,8 +229,8 @@ led_setoff:
 	bne	led_setoff		@ se não, volto para o começo da função
 	beq	loop1			@ se sim, vou para a leitura da sequência
 @-----------------------------------------------------------------
-@ r6 - numero do loop
-@ r7 - endereço do stack pointer
+@ r3 - quantidade de loops total
+@ r6 - loop atual
 loop1:
 	ldr	r4,=flag_timer		@ verifico se houve interrupcao
 	ldr	r0,[r4]			@ se sim, desativo a flag_timer
@@ -232,14 +245,11 @@ loop1:
 	cmp	r3,r6			@ verifica se terminou o loop
 	ldreq	r4,=fase		@ se sim, incremento a variavel da fase
 	ldreq	r1,[r4]			@ e armazeno um valor no timer
-	addeq	r1,#1			@ e faço um reset na variavel contador
-	streq	r1,[r4]			@ incremento o numero total de loops
-	ldreq	r4,=timer		@ e faço um reset no loop atual
-	moveq	r1,#tempo		@ por fim vou para wait
+	addeq	r1,#1			@ incremento o numero total de loops
+	streq	r1,[r4]			@ e faço um reset no loop atual
+	ldreq	r4,=timer		@ por fim vou para wait
+	moveq	r1,#tempo
 	streq	r1,[r4]
-@	ldreq	r4,=contador
-@	moveq	r1,#0
-@	streq	r1,[r4]	
 	addeq	r3,#1
 	moveq	r6,#0
 	beq	wait
@@ -290,10 +300,14 @@ verifica:
 	add	r1,#1
 	str	r1,[r4]
 	
-	cmp	r1,#3			@ verifico se houve 3 erros consecutivos
+	cmp	r1,#3			@ verifico se houve 3 erros
 	beq	begin			@ se sim, desvio para o begin
 
-	ldr	r4,=leds		@ se não, desligo os leds
+	ldr	r4,=flag_erro		@ se nao, ativa a flag_erro
+	mov	r1,#1
+	str	r1,[r4]
+
+	ldr	r4,=leds		@ desligo os leds
 	mov	r1,#0			@ faço um reset no loop atual
 	str	r1,[r4]			@ armazeno um tempo para aparecer a mensagem de erro
 	mov	r6,#0			@ carrego essa mensagem
@@ -313,23 +327,27 @@ compara:
 	mul	r0,r4			@ e pego o valor
 	add	fp,r0
 	ldrb	r4,[fp]
+	sub	fp,r0
 
 	cmp	r4,r1			@ verifico se o botão está certo na sequência
 	addeq	r6,#1			@ se sim, incremento o loop atual
 	ldreq	r4,=timer		@ carrego um novo intervalo para o timer
-	moveq	r5,#tempo		@ volto a posição da pilha
-	streq	r5,[r4]			@ e desvio para o loop1
-	mov	fp,sp
+	moveq	r1,#tempo		@ volto a posição da pilha
+	streq	r1,[r4]			@ e desvio para o loop1
 	beq	loop1
 
-	ldr	r4,=contador		@ se nao, incremento o contador
+	ldr	r4,=flag_erro		@ se nao, ativa a flag_erro
+	mov	r1,#1
+	str	r1,[r4]
+	
+	ldr	r4,=contador		@ incrementa o contador
 	ldr	r1,[r4]
 	add	r1,#1
 	str	r1,[r4]
 
-	cmp	r1,#3			@ verifico se o contador tem 3 erros
-	beq	begin			@ se sim, desvio para o begin
-
+	cmp	r1,#3
+	beq	begin
+	
 	ldr	r4,=timer		@ carrego um tempo para a mensagem de erro aparacer
 	mov	r1,#tempo		@ e desativo os leds
 	str	r1,[r4]			@ e faço um reset no loop atual
@@ -372,6 +390,7 @@ loop2:
 
 	moveq	r0,#off			@ se sim, desativo a flag_timer
 	streq	r0,[r4]			@ verifico se houver alteração na velocidade
+
 	ldr	r1,=flag_slider		@ caso haja, vou para a leitura da velocidade
 	ldr	r4,[r1]
 	cmp	r4,#on
@@ -383,10 +402,10 @@ loop2:
 	mul	r0,r4			@ e carrego o valor da sequência
 	add	fp,r0			@ e ligo a cor correspondente
 	ldrb	r1,[fp]			@ retorno a posição da pilha
+	sub	fp,r0
 	ldr	r4,=leds		@ e desloco para o começo do loop2
 	str	r1,[r4]
-	add	r6,#1
-	mov	fp,sp	
+	add	r6,#1	
 	b	loop2
 @-----------------------------------------------------------------------------------
 @ essa função atualiza o display lcd com a velocidade e a fase do jogo
@@ -404,7 +423,7 @@ lcd_refresh:
 	bl	write_msg
 	mov	r0,#(LCD_SETDDRAMADDR+64)
 	bl      wr_cmd
-	ldr	r1, =msg1
+	ldr	r1,=msg1
 	bl      write_msg1
 	pop	{lr}
 	bx	lr
@@ -480,7 +499,8 @@ color:
 	.byte	0x1,0x2,0x4,0x8
 contador:
 	.word	0
-
+flag_erro:
+	.word	0
 flag_timer:
 	.word	0
 flag_slider:
